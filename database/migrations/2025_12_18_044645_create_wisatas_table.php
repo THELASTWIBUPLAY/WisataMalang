@@ -19,7 +19,6 @@ return new class extends Migration
         $table->double('lat');          // Untuk hitung jarak (Latitude)
         $table->double('lng');          // Untuk hitung jarak (Longitude)
         $table->integer('fasilitas');   // Kriteria: Benefit (Contoh: jumlah fasilitas 1-5)
-        $table->string('gambar')->nullable();
         $table->timestamps();
     });
 }

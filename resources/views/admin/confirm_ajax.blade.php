@@ -36,8 +36,12 @@
                             <td class="col-9">{{ $wisata->nama_wisata }}</td>
                         </tr>
                         <tr>
-                            <th class="text-right col-3">Harga Tiket :</th>
-                            <td class="col-9">Rp {{ number_format($wisata->harga, 0, ',', '.') }}</td>
+                            <th class="text-right col-3">Harga Dewasa :</th>
+                            <td class="col-9">Rp {{ number_format($wisata->harga_dewasa_min, 0, ',', '.') }}</td>
+                        </tr>
+                        <tr>
+                            <th class="text-right col-3">Harga Anak :</th>
+                            <td class="col-9">Rp {{ number_format($wisata->harga_anak_min, 0, ',', '.') }}</td>
                         </tr>
                         <tr>
                             <th class="text-right col-3">Rating :</th>
@@ -70,7 +74,7 @@
                                     text: response.message
                                 });
                                 dataWisata.ajax
-                            .reload(); // Memanggil instance dataTable Wisata
+                                    .reload(); // Memanggil instance dataTable Wisata
                             } else {
                                 Swal.fire({
                                     icon: 'error',

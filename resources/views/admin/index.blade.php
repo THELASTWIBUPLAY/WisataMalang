@@ -16,7 +16,8 @@
                     <tr>
                         <th>No</th>
                         <th>Nama Wisata</th>
-                        <th>Harga</th>
+                        <th>Harga Dewasa</th>
+                        <th>Harga Anak</th>
                         <th>Rating</th>
                         <th>Aksi</th>
                     </tr>
@@ -68,9 +69,22 @@
                         searchable: true
                     },
                     {
-                        data: "harga",
+                        // UBAH DARI 'harga' KE 'harga_dewasa_min'
+                        data: "harga_dewasa_min",
                         orderable: true,
-                        searchable: true
+                        searchable: true,
+                        render: function(data, type, row) {
+                            return 'Rp ' + new Intl.NumberFormat('id-ID').format(data);
+                        }
+                    },
+                    {
+                        // TAMBAHKAN KOLOM HARGA ANAK (MIN)
+                        data: "harga_anak_min",
+                        orderable: true,
+                        searchable: true,
+                        render: function(data, type, row) {
+                            return 'Rp ' + new Intl.NumberFormat('id-ID').format(data);
+                        }
                     },
                     {
                         data: "rating",

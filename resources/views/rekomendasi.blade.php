@@ -8,6 +8,53 @@
                 <p class="text-muted">Tentukan lokasi Anda untuk mendapatkan rekomendasi wisata terbaik berdasarkan jarak,
                     harga, dan rating.</p>
 
+                <div class="card border-0 shadow-sm rounded-4 mb-3">
+                    <div class="card-body p-3">
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <label class="small fw-bold">HARGA</label>
+                                <select id="filter_harga" class="form-select">
+                                    <option value="">Semua Harga</option>
+                                    <option value="50000">Di bawah Rp 50.000</option>
+                                    <option value="100000">Rp 50.000 - Rp 100.000</option>
+                                    <option value="100001">Di atas Rp 100.000</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="small fw-bold">JARAK MAKSIMAL</label>
+                                <select id="filter_jarak" class="form-select">
+                                    <option value="">Semua Jarak</option>
+                                    <option value="5">Kurang dari 5 km</option>
+                                    <option value="20">5 km - 20 km</option>
+                                    <option value="21">Lebih dari 20 km</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="small fw-bold">RATING MINIMAL</label>
+                                <select id="filter_rating" class="form-select">
+                                    <option value="">Semua Rating</option>
+                                    <option value="5">⭐⭐⭐⭐⭐ (5)</option>
+                                    <option value="4">⭐⭐⭐⭐ (4+)</option>
+                                    <option value="3">⭐⭐⭐ (3+)</option>
+                                    <option value="2">⭐⭐ (2+)</option>
+                                    <option value="1">⭐ (1+)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="small fw-bold">TIPE PENGUNJUNG</label>
+                                <select id="tipe_pengunjung" class="form-select">
+                                    <option value="dewasa">Dewasa</option>
+                                    <option value="anak">Anak-anak</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <button onclick="prosesSAW()" class="btn btn-primary w-100 fw-bold">
+                                    <i class="fas fa-sync-alt me-2"></i> Update Rekomendasi
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div class="row g-3">
                     <div class="col-md-8">
                         {{-- Map untuk pilih lokasi --}}
@@ -107,14 +154,7 @@
         function prosesSAW() {
             let lat = $('#user_lat').val();
             let lng = $('#user_lng').val();
-
-            Swal.fire({
-                title: 'Menghitung Rekomendasi...',
-                allowOutsideClick: false,
-                didOpen: () => {
-                    Swal.showLoading()
-                }
-            });
+            let tipe = $('#tipe_pengunjung').val(); // Ambil tipe (dewasa/anak)
 
             $.ajax({
                 url: "{{ url('wisata/hitung_saw_ajax') }}",
@@ -122,12 +162,17 @@
                 data: {
                     _token: "{{ csrf_token() }}",
                     lat: lat,
-                    lng: lng
+                    lng: lng,
+                    tipe_pengunjung: tipe,
+                    filter_harga: $('#filter_harga').val(),
+                    filter_jarak: $('#filter_jarak').val(),
+                    filter_rating: $('#filter_rating').val()
                 },
                 success: function(response) {
                     Swal.close();
                     if (response.status) {
-                        renderCards(response.data);
+                        // KIRIM variabel 'tipe' ke fungsi renderCards
+                        renderCards(response.data, tipe);
                     } else {
                         Swal.fire('Gagal', response.message, 'error');
                     }
@@ -135,13 +180,14 @@
             });
         }
 
-        function renderCards(data) {
+        function renderCards(data, tipe = 'dewasa') {
             let html = '';
             if (data.length === 0) {
-                html = '<div class="col-12 text-center text-muted"><p>Tidak ada data wisata tersedia.</p></div>';
+                html =
+                    '<div class="col-12 text-center text-muted p-5"><i class="fas fa-search fa-3x mb-3"></i><p>Tidak ada data wisata yang sesuai dengan kriteria Anda.</p></div>';
             } else {
                 data.forEach((item, index) => {
-                    // Beri label peringkat untuk 3 teratas
+                    // --- LOGIKA YANG TADI HILANG HARUS ADA DI SINI ---
                     let badgeClass = 'bg-secondary';
                     let rankingLabel = `Peringkat #${index + 1}`;
 
@@ -155,6 +201,14 @@
                         badgeClass = 'bg-orange text-white';
                         rankingLabel = '🥉 Pilihan Ketiga';
                     }
+                    // ------------------------------------------------
+
+                    let fotoUrl = (item.daftar_gambar && item.daftar_gambar.length > 0) ?
+                        `{{ asset('storage/wisata') }}/${item.daftar_gambar[0].nama_file}` :
+                        `https://via.placeholder.com/400x250?text=No+Image`;
+
+                    let labelHarga = (tipe === 'anak') ? 'Harga Anak' : 'Harga Dewasa';
+                    let nilaiHarga = (tipe === 'anak') ? item.harga_anak_min : item.harga_dewasa_min;
 
                     html += `
                 <div class="col-md-4 mb-4">
@@ -162,18 +216,25 @@
                         <span class="position-absolute top-0 start-0 m-2 badge ${badgeClass} shadow-sm px-3 py-2">
                             ${rankingLabel}
                         </span>
-                        <img src="https://via.placeholder.com/400x250" class="card-img-top" alt="${item.nama_wisata}">
+                        <img src="${fotoUrl}" class="card-img-top" style="height: 200px; object-fit: cover;" alt="${item.nama_wisata}">
                         <div class="card-body">
                             <h5 class="fw-bold mb-1">${item.nama_wisata}</h5>
                             <div class="d-flex justify-content-between mb-2">
                                 <small class="text-muted"><i class="fas fa-map-marker-alt"></i> ${item.jarak_user.toFixed(2)} km</small>
                                 <small class="text-warning fw-bold"><i class="fas fa-star"></i> ${item.rating}</small>
                             </div>
-                            <h6 class="text-success fw-bold">Rp ${new Intl.NumberFormat('id-ID').format(item.harga)}</h6>
+                            
+                            <div class="mt-2 p-2 bg-light rounded border-start border-4 ${tipe === 'anak' ? 'border-info' : 'border-success'}">
+                                <small class="text-muted d-block" style="font-size: 10px; text-transform: uppercase; font-weight: bold;">${labelHarga}</small>
+                                <h6 class="${tipe === 'anak' ? 'text-info' : 'text-success'} fw-bold mb-0">
+                                    Rp ${new Intl.NumberFormat('id-ID').format(nilaiHarga)}
+                                </h6>
+                            </div>
+                            
                             <hr>
                             <div class="d-flex justify-content-between align-items-center">
                                 <div class="text-primary fw-bold small text-uppercase">Skor SAW: ${item.skor}</div>
-                                <button onclick="modalAction('{{ url('wisata') }}/${item.id}/wisata_show')" class="btn btn-sm btn-primary">
+                                <button onclick="modalAction('{{ url('wisata') }}/${item.id}/wisata_show')" class="btn btn-sm btn-primary shadow-sm">
                                     Lihat Detail
                                 </button>
                             </div>
@@ -185,16 +246,16 @@
             }
             $('#hasil-rekomendasi').html(html);
 
-            // Scroll otomatis ke hasil agar user tahu data sudah muncul
             $('html, body').animate({
                 scrollTop: $("#hasil-rekomendasi").offset().top - 100
             }, 500);
         }
+
         // Fungsi untuk memanggil modal detail
-            function modalAction(url = '') {
-                $('#myModal').load(url, function() {
-                    $('#myModal').modal('show');
-                });
-            }
+        function modalAction(url = '') {
+            $('#myModal').load(url, function() {
+                $('#myModal').modal('show');
+            });
+        }
     </script>
 @endpush

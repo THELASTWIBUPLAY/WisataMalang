@@ -16,7 +16,7 @@ class WisataController extends Controller
 
     public function list(Request $request)
     {
-        $wisatas = Wisata::select('id', 'nama_wisata', 'harga', 'rating');
+        $wisatas = Wisata::select('id', 'nama_wisata', 'harga_dewasa_min', 'harga_anak_min', 'rating');
 
         return DataTables::of($wisatas)
             ->addIndexColumn()
@@ -44,32 +44,52 @@ class WisataController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'nama_wisata' => 'required',
-            'harga' => 'required|numeric',
+            'harga_dewasa_min' => 'required|numeric',
             'lat' => 'required',
-            'lng' => 'required'
+            'lng' => 'required',
+            'foto.*' => 'nullable|image|mimes:jpeg,png,jpg|max:5120' // Validasi tiap file
         ]);
 
         if ($validator->fails()) {
             return response()->json(['status' => false, 'msgField' => $validator->errors()]);
         }
 
-        // Hitung jumlah fasilitas yang dicentang untuk nilai SAW
         $poinFasilitas = count($request->fasilitas_ids ?? []);
 
+        // Simpan Data Wisata
         $wisata = Wisata::create([
             'nama_wisata' => $request->nama_wisata,
-            'harga' => $request->harga,
+            'deskripsi' => $request->deskripsi,
+            'harga_dewasa_min' => $request->harga_dewasa_min,
+            'harga_dewasa_max' => $request->harga_dewasa_max,
+            'harga_anak_min' => $request->harga_anak_min,
+            'harga_anak_max' => $request->harga_anak_max,
             'lat' => $request->lat,
             'lng' => $request->lng,
             'rating' => 0,
-            'fasilitas' => $poinFasilitas // Nilai kriteria Fasilitas untuk SAW
+            'fasilitas' => $poinFasilitas
         ]);
+
+        // Proses Simpan Banyak Foto ke Tabel 'gambars'
+        if ($request->hasFile('foto')) {
+            foreach ($request->file('foto') as $file) {
+                $filename = time() . '_' . $file->getClientOriginalName();
+
+                // Tambahkan parameter ketiga 'public' agar masuk ke storage/app/public
+                $file->storeAs('wisata', $filename, 'public');
+
+                \App\Models\Gambar::create([
+                    'wisata_id' => $wisata->id,
+                    'nama_file' => $filename
+                ]);
+            }
+        }
 
         if ($request->has('fasilitas_ids')) {
             $wisata->daftar_fasilitas()->sync($request->fasilitas_ids);
         }
 
-        return response()->json(['status' => true, 'message' => 'Data wisata berhasil disimpan']);
+        return response()->json(['status' => true, 'message' => 'Data wisata dan foto berhasil disimpan']);
     }
 
     public function delete_ajax(Request $request, $id)
@@ -102,10 +122,11 @@ class WisataController extends Controller
         if ($request->ajax() || $request->wantsJson()) {
             $rules = [
                 'nama_wisata' => 'required|string|max:100',
-                'harga'       => 'required|numeric',
-                'rating'      => 'required|numeric|between:0,5',
-                'lat'         => 'required',
-                'lng'         => 'required'
+                'harga_dewasa_min' => 'required|numeric',
+                'rating' => 'required|numeric|between:0,5',
+                'lat' => 'required',
+                'lng' => 'required',
+                'foto.*' => 'nullable|image|mimes:jpeg,png,jpg|max:5120'
             ];
 
             $validator = Validator::make($request->all(), $rules);
@@ -115,31 +136,42 @@ class WisataController extends Controller
 
             $wisata = Wisata::find($id);
             if ($wisata) {
-                $wisata->update($request->all());
+                // Update data teks
+                $wisata->update($request->except('foto'));
 
-                // 1. Simpan/Update Nilai Kriteria Dinamis ke Tabel Pivot
-                if ($request->has('kriteria_tambahan')) {
-                    foreach ($request->kriteria_tambahan as $kriteria_id => $nilai) {
-                        // Menggunakan updateExistingPivot atau syncWithoutDetaching
-                        $wisata->nilai_kriteria()->syncWithoutDetaching([
-                            $kriteria_id => ['nilai' => $nilai]
+                // Tambah Foto Baru jika ada yang diupload
+                if ($request->hasFile('foto')) {
+                    foreach ($request->file('foto') as $file) {
+                        $filename = time() . '_' . $file->getClientOriginalName();
+
+                        // Tambahkan parameter ketiga 'public' agar masuk ke storage/app/public
+                        $file->storeAs('wisata', $filename, 'public');
+
+                        \App\Models\Gambar::create([
+                            'wisata_id' => $wisata->id,
+                            'nama_file' => $filename
                         ]);
                     }
                 }
 
-                // 2. Sinkronisasi Fasilitas (tetap seperti kode lama Anda)
+                // Sync Kriteria Dinamis & Fasilitas
+                if ($request->has('kriteria_tambahan')) {
+                    foreach ($request->kriteria_tambahan as $k_id => $nilai) {
+                        $wisata->nilai_kriteria()->syncWithoutDetaching([$k_id => ['nilai' => $nilai]]);
+                    }
+                }
+
                 $wisata->daftar_fasilitas()->sync($request->fasilitas_ids ?? []);
                 $wisata->fasilitas = count($request->fasilitas_ids ?? []);
                 $wisata->save();
 
-                return response()->json(['status' => true, 'message' => 'Data dan nilai kriteria berhasil diperbarui']);
+                return response()->json(['status' => true, 'message' => 'Data, kriteria, dan foto berhasil diperbarui']);
             }
         }
     }
 
     public function hitung_saw_ajax(Request $request)
     {
-        // Cek apakah ada koordinat user
         if (!$request->lat || !$request->lng) {
             return response()->json(['status' => false, 'message' => 'Lokasi Anda belum ditentukan']);
         }
@@ -147,82 +179,85 @@ class WisataController extends Controller
         $userLat = $request->lat;
         $userLng = $request->lng;
 
-        // 1. Ambil data wisata
-        $wisata = Wisata::all();
-        if ($wisata->isEmpty()) {
-            return response()->json(['status' => false, 'message' => 'Data wisata kosong']);
+        // 1. Inisialisasi Tipe Pengunjung & Kolom Harga
+        $tipe = $request->tipe_pengunjung ?? 'dewasa';
+        $kolomHarga = ($tipe == 'anak') ? 'harga_anak_min' : 'harga_dewasa_min';
+
+        // Ambil data dengan Eager Loading gambar
+        $query = Wisata::with('daftar_gambar');
+
+        // 2. Filter Tahap 1 (Database Level)
+        if ($request->filter_rating) {
+            $query->where('rating', '>=', $request->filter_rating);
         }
 
-        // --- DI SINI PERUBAHANNYA ---
-        // Ambil bobot hasil optimasi dari database (nama_kriteria sebagai key, bobot_normalisasi sebagai value)
-        $bobot = Kriteria::pluck('bobot_normalisasi', 'nama_kriteria')->toArray();
-        // ----------------------------
+        if ($request->filter_harga) {
+            if ($request->filter_harga == 50000) $query->where($kolomHarga, '<', 50000);
+            elseif ($request->filter_harga == 100000) $query->whereBetween($kolomHarga, [50000, 100000]);
+            else $query->where($kolomHarga, '>', 100000);
+        }
 
-        // 2. Hitung Jarak (Haversine)
+        $wisata = $query->get();
+
+        // 3. Hitung Jarak & Filter Tahap 2 (Collection Level)
         foreach ($wisata as $w) {
             $w->jarak_user = $this->haversine($userLat, $userLng, $w->lat, $w->lng);
         }
 
-        $minHarga = $wisata->min('harga');
-        $maxRating = $wisata->max('rating');
-        $minJarak = $wisata->min('jarak_user');
-        $maxFasilitas = $wisata->max('fasilitas');
+        if ($request->filter_jarak) {
+            $wisata = $wisata->filter(function ($item) use ($request) {
+                if ($request->filter_jarak == 5) return $item->jarak_user < 5;
+                if ($request->filter_jarak == 20) return $item->jarak_user >= 5 && $item->jarak_user <= 20;
+                return $item->jarak_user > 20;
+            });
+        }
 
-        // 3. Normalisasi & Perhitungan Skor Akhir secara Otomatis
-        $semuaKriteria = Kriteria::all(); // Ambil semua kriteria dari DB
+        if ($wisata->isEmpty()) {
+            return response()->json(['status' => false, 'message' => 'Tidak ada destinasi yang cocok dengan filter Anda']);
+        }
 
-        // Cari Min/Max untuk setiap kriteria yang ada
+        // 4. Proses SAW: Cari Min/Max
+        $semuaKriteria = Kriteria::all();
         $minMax = [];
         foreach ($semuaKriteria as $k) {
-            if ($k->nama_kriteria == 'jarak') {
-                $minMax[$k->id] = $wisata->min('jarak_user');
-            } elseif ($k->nama_kriteria == 'harga' || $k->nama_kriteria == 'rating' || $k->nama_kriteria == 'fasilitas') {
-                $minMax[$k->id] = $wisata->{$k->jenis == 'cost' ? 'min' : 'max'}($k->nama_kriteria);
+            // Ambil field yang sesuai
+            $fieldName = ($k->nama_kriteria == 'jarak') ? 'jarak_user' : (($k->nama_kriteria == 'harga') ? $kolomHarga : $k->nama_kriteria);
+
+            // Cari Min jika jenisnya cost, cari Max jika jenisnya benefit
+            if ($k->jenis == 'cost') {
+                $minMax[$k->id] = $wisata->min($fieldName);
             } else {
-                // Untuk kriteria BARU yang Anda tambah sendiri (diambil dari tabel pivot)
-                $minMax[$k->id] = DB::table('wisata_kriteria')
-                    ->where('kriteria_id', $k->id)
-                    ->{$k->jenis == 'cost' ? 'min' : 'max'}('nilai');
+                $minMax[$k->id] = $wisata->max($fieldName);
             }
         }
 
-        $hasil = $wisata->map(function ($item) use ($semuaKriteria, $minMax) {
+        // 5. Proses SAW: Normalisasi & Perankingan
+        $hasil = $wisata->map(function ($item) use ($semuaKriteria, $minMax, $kolomHarga) {
             $total_skor = 0;
-
             foreach ($semuaKriteria as $k) {
-                // Ambil nilai real (x)
+                // Ambil nilai asli
                 if ($k->nama_kriteria == 'jarak') $nilai_asli = $item->jarak_user;
-                elseif (in_array($k->nama_kriteria, ['harga', 'rating', 'fasilitas'])) $nilai_asli = $item->{$k->nama_kriteria};
-                else {
-                    // Ambil nilai dari tabel pivot untuk kriteria tambahan
-                    $nilai_asli = $item->nilai_kriteria->where('id', $k->id)->first()->pivot->nilai ?? 0;
-                }
+                elseif ($k->nama_kriteria == 'harga') $nilai_asli = $item->$kolomHarga;
+                else $nilai_asli = $item->{$k->nama_kriteria} ?? 0;
 
-                // Jalankan Normalisasi (r)
                 $r = 0;
-                if ($nilai_asli > 0 && isset($minMax[$k->id]) && $minMax[$k->id] > 0) {
+                if (isset($minMax[$k->id]) && $minMax[$k->id] > 0) {
                     if ($k->jenis == 'cost') {
-                        $r = $minMax[$k->id] / $nilai_asli;
+                        $r = ($nilai_asli == 0) ? 1 : $minMax[$k->id] / $nilai_asli;
                     } else {
-                        $r = $nilai_asli / $minMax[$k->id];
+                        $r = ($nilai_asli == 0) ? 0 : $nilai_asli / $minMax[$k->id];
                     }
                 }
-
-                // Hitung Skor (r * bobot_normalisasi)
                 $total_skor += ($r * $k->bobot_normalisasi);
             }
-
             $item->skor = round($total_skor, 4);
             return $item;
         });
-        // Urutkan data berdasarkan skor tertinggi (Ranking)
-        $hasilRanking = $hasil->sortByDesc('skor')->values();
 
-        // Kirim hasil ke AJAX agar bisa ditampilkan di halaman Rekomendasi
         return response()->json([
             'status' => true,
-            'message' => 'Rekomendasi berhasil dihitung.',
-            'data' => $hasilRanking
+            'message' => 'Rekomendasi berhasil diperbarui.',
+            'data' => $hasil->sortByDesc('skor')->values()
         ]);
     }
 
@@ -238,14 +273,13 @@ class WisataController extends Controller
 
     public function show_ajax(string $id)
     {
-        // Mengambil data wisata beserta fasilitasnya
-        $wisata = Wisata::with('daftar_fasilitas')->find($id);
+        // Tambahkan 'daftar_gambar' di dalam with()
+        $wisata = Wisata::with(['daftar_fasilitas', 'daftar_gambar'])->find($id);
 
         if (!$wisata) {
             return response()->json(['status' => false, 'message' => 'Data tidak ditemukan']);
         }
 
-        // Hapus pengecekan level_id == 1 agar Admin juga melihat tampilan 'wisata_show'
         return view('wisata_show', compact('wisata'));
     }
 
@@ -292,7 +326,8 @@ class WisataController extends Controller
 
     public function landing()
     {
-        $wisata = Wisata::all(); // Mengambil semua data wisata
+        // Tambahkan with('daftar_gambar') agar data foto ikut terambil
+        $wisata = Wisata::with('daftar_gambar')->get();
 
         return view('welcome_wisata', [
             'wisata' => $wisata

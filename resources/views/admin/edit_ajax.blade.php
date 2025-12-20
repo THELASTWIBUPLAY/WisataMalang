@@ -17,7 +17,8 @@
         </div>
     </div>
 @else
-    <form action="{{ url('/wisata/' . $wisata->id . '/update_ajax') }}" method="POST" id="form-edit">
+    <form action="{{ url('/wisata/' . $wisata->id . '/update_ajax') }}" method="POST" id="form-edit"
+        enctype="multipart/form-data">
         @csrf
         @method('PUT')
         <div id="modal-master" class="modal-dialog modal-lg" role="document">
@@ -35,13 +36,37 @@
                             class="form-control" required>
                         <small id="error-nama_wisata" class="error-text form-text text-danger"></small>
                     </div>
+                    <div class="form-group mb-3">
+                        <label class="fw-bold">Deskripsi Wisata</label>
+                        <textarea name="deskripsi" class="form-control" rows="3">{{ $wisata->deskripsi }}</textarea>
+                    </div>
                     <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Harga Tiket</label>
-                                <input value="{{ $wisata->harga }}" type="number" name="harga" id="harga"
-                                    class="form-control" required>
-                                <small id="error-harga" class="error-text form-text text-danger"></small>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="fw-bold text-primary">Harga Dewasa</label>
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text small">Min</span>
+                                    <input value="{{ $wisata->harga_dewasa_min }}" type="number" name="harga_dewasa_min"
+                                        class="form-control" required>
+                                </div>
+                                <div class="input-group">
+                                    <span class="input-group-text small">Max</span>
+                                    <input value="{{ $wisata->harga_dewasa_max }}" type="number" name="harga_dewasa_max"
+                                        class="form-control" placeholder="Opsional">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="fw-bold text-success">Harga Anak-Anak</label>
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text small">Min</span>
+                                    <input value="{{ $wisata->harga_anak_min }}" type="number" name="harga_anak_min"
+                                        class="form-control" required>
+                                </div>
+                                <div class="input-group">
+                                    <span class="input-group-text small">Max</span>
+                                    <input value="{{ $wisata->harga_anak_max }}" type="number" name="harga_anak_max"
+                                        class="form-control" placeholder="Opsional">
+                                </div>
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -66,9 +91,27 @@
                             @endforeach
                         </div>
                     </div>
+                    <div class="form-group mb-3">
+                        <label class="fw-bold">Foto Wisata (Upload untuk Menambah)</label>
+                        <input type="file" name="foto[]" class="form-control" multiple accept="image/*">
+
+                        @if ($wisata->daftar_gambar->count() > 0)
+                            <div class="mt-2 d-flex flex-wrap gap-2">
+                                @foreach ($wisata->daftar_gambar as $g)
+                                    <div class="position-relative">
+                                        <img src="{{ asset('storage/wisata/' . $g->nama_file) }}" class="rounded border"
+                                            style="width: 80px; height: 60px; object-fit: cover;">
+                                    </div>
+                                @endforeach
+                            </div>
+                            <small class="text-muted italic">Foto di atas adalah foto yang sudah tersimpan di
+                                database.</small>
+                        @endif
+                    </div>
                     <div class="form-group">
                         <label>Lokasi (Geser Pin pada Peta)</label>
-                        <div id="map-edit" style="height: 350px; width: 100%; border: 1px solid #ccc; border-radius: 8px;"
+                        <div id="map-edit"
+                            style="height: 350px; width: 100%; border: 1px solid #ccc; border-radius: 8px;"
                             class="mb-2"></div>
                         <div class="row">
                             <div class="col-6">
@@ -168,10 +211,15 @@
             // 6. Validasi Form AJAX
             $("#form-edit").validate({
                 submitHandler: function(form) {
+                    // Gunakan FormData untuk mengirim file dan teks sekaligus
+                    var formData = new FormData(form);
+
                     $.ajax({
                         url: form.action,
-                        type: 'POST', // Laravel membaca @method('PUT') dari form
-                        data: $(form).serialize(),
+                        type: 'POST', // Laravel membaca @method('PUT') di dalam form
+                        data: formData,
+                        processData: false, // WAJIB untuk upload file
+                        contentType: false, // WAJIB untuk upload file
                         success: function(response) {
                             if (response.status) {
                                 $('#myModal').modal('hide');
@@ -180,7 +228,6 @@
                                     title: 'Berhasil',
                                     text: response.message
                                 });
-                                // Pastikan variabel DataTable Anda benar (dataWisata atau tableWisata)
                                 if (typeof dataWisata !== 'undefined') dataWisata.ajax
                                     .reload();
                             } else {
@@ -190,6 +237,13 @@
                                     text: response.message
                                 });
                             }
+                        },
+                        error: function(xhr) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: 'Terjadi kesalahan pada server.'
+                            });
                         }
                     });
                     return false;

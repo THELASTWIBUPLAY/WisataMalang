@@ -30,13 +30,26 @@
             @foreach ($wisata as $w)
                 <div class="col-md-4 mb-4">
                     <div class="card h-100 shadow-sm border-0">
-                        <img src="https://via.placeholder.com/300x200" class="card-img-top rounded-top"
-                            alt="{{ $w->nama_wisata }}">
+                        @if ($w->daftar_gambar->isNotEmpty())
+                            <img src="{{ asset('storage/wisata/' . $w->daftar_gambar->first()->nama_file) }}"
+                                class="card-img-top rounded-top" style="height: 200px; object-fit: cover;"
+                                alt="{{ $w->nama_wisata }}">
+                        @else
+                            <img src="https://via.placeholder.com/300x200?text=No+Image" class="card-img-top rounded-top"
+                                alt="{{ $w->nama_wisata }}">
+                        @endif
                         <div class="card-body">
                             <h5 class="card-title fw-bold text-primary">{{ $w->nama_wisata }}</h5>
-                            <p class="card-text text-muted mb-1">
-                                <i class="fas fa-money-bill-wave text-success me-2"></i>Rp {{ number_format($w->harga) }}
-                            </p>
+                            <div class="mb-2">
+                                <p class="card-text text-muted mb-0 small">
+                                    <i class="fas fa-user-friends text-primary me-2"></i>Dewasa: <b>Rp
+                                        {{ number_format($w->harga_dewasa_min) }}</b>
+                                </p>
+                                <p class="card-text text-muted mb-0 small">
+                                    <i class="fas fa-child text-info me-2"></i>Anak: <b>Rp
+                                        {{ number_format($w->harga_anak_min) }}</b>
+                                </p>
+                            </div>
                             <p class="card-text text-muted">
                                 <i class="fas fa-star text-warning me-2"></i>{{ $w->rating }} / 5.0
                             </p>

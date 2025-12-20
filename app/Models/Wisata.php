@@ -7,7 +7,24 @@ use Illuminate\Database\Eloquent\Model;
 class Wisata extends Model
 {
     protected $table = 'wisatas';
-    protected $fillable = ['nama_wisata', 'harga', 'rating', 'lat', 'lng', 'fasilitas'];
+    protected $fillable = [
+        'nama_wisata',
+        'deskripsi',
+        'harga_dewasa_min',
+        'harga_dewasa_max',
+        'harga_anak_min',
+        'harga_anak_max',
+        'rating',
+        'lat',
+        'lng',
+        'fasilitas'
+    ];
+    protected $primaryKey = 'id';
+
+    public function daftar_gambar()
+    {
+        return $this->hasMany(Gambar::class, 'wisata_id', 'id');
+    }
 
     public function daftar_fasilitas()
     {

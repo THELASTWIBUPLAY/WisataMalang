@@ -15,17 +15,56 @@
         <div class="modal-content">
             <div class="modal-header bg-info text-white">
                 <h5 class="modal-title"><i class="fas fa-info-circle me-2"></i> Detail Destinasi Wisata</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
             </div>
             <div class="modal-body">
+                @if ($wisata->daftar_gambar->count() > 0)
+                    <div id="carouselDetail" class="carousel slide mb-3" data-bs-ride="carousel">
+                        <div class="carousel-inner rounded-top">
+                            @foreach ($wisata->daftar_gambar as $index => $g)
+                                <div class="carousel-item {{ $index == 0 ? 'active' : '' }}">
+                                    <img src="{{ asset('storage/wisata/' . $g->nama_file) }}" class="d-block w-100"
+                                        style="height: 300px; object-fit: cover;">
+                                </div>
+                            @endforeach
+                        </div>
+                        <button class="carousel-control-prev" type="button" data-bs-target="#carouselDetail"
+                            data-bs-slide="prev">
+                            <span class="carousel-control-prev-icon"></span>
+                        </button>
+                        <button class="carousel-control-next" type="button" data-bs-target="#carouselDetail"
+                            data-bs-slide="next">
+                            <span class="carousel-control-next-icon"></span>
+                        </button>
+                    </div>
+                @endif
                 <table class="table table-bordered table-striped">
                     <tr>
                         <th class="col-3 text-end bg-light">Nama Wisata</th>
                         <td class="col-9">{{ $wisata->nama_wisata }}</td>
                     </tr>
                     <tr>
-                        <th class="text-end bg-light">Harga Tiket</th>
-                        <td>Rp {{ number_format($wisata->harga, 0, ',', '.') }}</td>
+                        <th class="text-end bg-light">Deskripsi</th>
+                        <td>{{ $wisata->deskripsi ?? '-' }}</td>
+                    </tr>
+                    <tr>
+                        <th class="text-end bg-light">Harga Dewasa</th> {{-- Ubah Label di sini --}}
+                        <td>
+                            Rp {{ number_format($wisata->harga_dewasa_min, 0, ',', '.') }}
+                            @if ($wisata->harga_dewasa_max)
+                                - Rp {{ number_format($wisata->harga_dewasa_max, 0, ',', '.') }}
+                            @endif
+                        </td>
+                    </tr>
+                    <tr>
+                        <th class="text-end bg-light">Harga Anak</th> {{-- Ubah Label di sini --}}
+                        <td>
+                            Rp {{ number_format($wisata->harga_anak_min, 0, ',', '.') }}
+                            @if ($wisata->harga_anak_max)
+                                - Rp {{ number_format($wisata->harga_anak_max, 0, ',', '.') }}
+                            @endif
+                        </td>
                     </tr>
                     <tr>
                         <th class="text-end bg-light">Rating</th>
@@ -42,9 +81,9 @@
                     <tr>
                         <th class="text-end bg-light text-vertical-align-middle">Fasilitas Tersedia</th>
                         <td>
-                            @if($wisata->daftar_fasilitas->count() > 0)
+                            @if ($wisata->daftar_fasilitas->count() > 0)
                                 <div class="d-flex flex-wrap gap-2">
-                                    @foreach($wisata->daftar_fasilitas as $f)
+                                    @foreach ($wisata->daftar_fasilitas as $f)
                                         <span class="badge bg-success">
                                             <i class="fas fa-check-circle me-1"></i> {{ $f->nama_fasilitas }}
                                         </span>
@@ -59,7 +98,8 @@
 
                 <div class="mt-3">
                     <label class="fw-bold mb-2">Lokasi pada Peta:</label>
-                    <div id="map-detail" style="height: 300px; width: 100%; border-radius: 8px; border: 1px solid #dee2e6;"></div>
+                    <div id="map-detail" style="height: 300px; width: 100%; border-radius: 8px; border: 1px solid #dee2e6;">
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -74,7 +114,7 @@
             setTimeout(function() {
                 var lat = {{ $wisata->lat }};
                 var lng = {{ $wisata->lng }};
-                
+
                 var mapDetail = L.map('map-detail').setView([lat, lng], 15);
 
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

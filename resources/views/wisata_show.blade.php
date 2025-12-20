@@ -5,8 +5,28 @@
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body p-0">
-            <img src="https://via.placeholder.com/800x400" class="img-fluid w-100" alt="{{ $wisata->nama_wisata }}">
-
+            @if ($wisata->daftar_gambar->isNotEmpty())
+                <div id="carouselWisata" class="carousel slide" data-bs-ride="carousel">
+                    <div class="carousel-inner">
+                        @foreach ($wisata->daftar_gambar as $index => $g)
+                            <div class="carousel-item {{ $index == 0 ? 'active' : '' }}">
+                                <img src="{{ asset('storage/wisata/' . $g->nama_file) }}" class="d-block w-100"
+                                    style="height: 400px; object-fit: cover;">
+                            </div>
+                        @endforeach
+                    </div>
+                    <button class="carousel-control-prev" type="button" data-bs-target="#carouselWisata"
+                        data-bs-slide="prev">
+                        <span class="carousel-control-prev-icon"></span>
+                    </button>
+                    <button class="carousel-control-next" type="button" data-bs-target="#carouselWisata"
+                        data-bs-slide="next">
+                        <span class="carousel-control-next-icon"></span>
+                    </button>
+                </div>
+            @else
+                <img src="https://via.placeholder.com/800x400" class="img-fluid w-100">
+            @endif
             <div class="p-4">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h3 class="fw-bold text-primary mb-0">{{ $wisata->nama_wisata }}</h3>
@@ -17,7 +37,17 @@
                 <div class="row mb-4">
                     <div class="col-md-6">
                         <p class="text-muted mb-1 small text-uppercase fw-bold">Harga Tiket</p>
-                        <h4 class="text-success fw-bold">Rp {{ number_format($wisata->harga) }}</h4>
+                        <div class="mb-2">
+                            <span class="badge bg-primary mb-1">Dewasa</span>
+                            <h5 class="text-success fw-bold">Rp
+                                {{ number_format($wisata->harga_dewasa_min, 0, ',', '.') }}</h5>
+                        </div>
+
+                        <div>
+                            <span class="badge bg-info mb-1">Anak-anak</span>
+                            <h5 class="text-success fw-bold">Rp
+                                {{ number_format($wisata->harga_anak_min, 0, ',', '.') }}</h5>
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <p class="text-muted mb-1 small text-uppercase fw-bold">Lokasi Wisata</p>
@@ -32,6 +62,20 @@
                     <p class="text-muted" style="line-height: 1.6;">
                         {{ $wisata->deskripsi ?? 'Nikmati pengalaman liburan tak terlupakan di ' . $wisata->nama_wisata }}
                     </p>
+                </div>
+                <div class="mb-4">
+                    <h6 class="fw-bold"><i class="fas fa-concierge-bell me-2 text-primary"></i> Fasilitas Tersedia</h6>
+                    @if ($wisata->daftar_fasilitas->count() > 0)
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach ($wisata->daftar_fasilitas as $f)
+                                <span class="badge rounded-pill bg-light text-dark border py-2 px-3 shadow-sm">
+                                    <i class="fas fa-check-circle text-success me-1"></i> {{ $f->nama_fasilitas }}
+                                </span>
+                            @endforeach
+                        </div>
+                    @else
+                        <p class="text-muted small italic"><em>Belum ada data fasilitas untuk tempat ini.</em></p>
+                    @endif
                 </div>
             </div>
         </div>
