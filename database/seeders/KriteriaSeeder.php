@@ -12,7 +12,7 @@ class KriteriaSeeder extends Seeder
         $data = [
             [
                 'nama_kriteria' => 'harga',
-                'bobot' => 40, // 30%
+                'bobot' => 30, // 30%
                 'jenis' => 'cost', // Semakin murah semakin bagus
             ],
             [
@@ -22,7 +22,12 @@ class KriteriaSeeder extends Seeder
             ],
             [
                 'nama_kriteria' => 'fasilitas',
-                'bobot' => 40, // 20%
+                'bobot' => 30, // 20%
+                'jenis' => 'benefit', // Semakin lengkap semakin bagus
+            ],
+            [
+                'nama_kriteria' => 'rating',
+                'bobot' => 20, // 20%
                 'jenis' => 'benefit', // Semakin lengkap semakin bagus
             ],
         ];
