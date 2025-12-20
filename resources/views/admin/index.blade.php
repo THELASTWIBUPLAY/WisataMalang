@@ -4,8 +4,6 @@
         <div class="card-header">
             <h3 class="card-title">Daftar Wisata</h3>
             <div class="card-tools">
-                <a href="{{ url('kriteria') }}" class="btn btn-sm btn-primary mt-1"><i class="fas fa-weights-hanging"></i>
-                    Kelola Bobot Kriteria</a>
                 <a href="{{ url('fasilitas') }}" class="btn btn-sm btn-info"><i class="fas fa-list"></i> Kelola Master
                     Fasilitas</a>
                 <button onclick="modalAction('{{ url('wisata/create_ajax') }}')" class="btn btn-sm btn-success mt-1">Tambah

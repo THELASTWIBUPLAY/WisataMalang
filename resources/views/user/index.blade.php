@@ -1,67 +1,78 @@
 @extends('layouts.app')
+
 @section('content')
-<div class="card card-outline card-success">
-    <div class="card-header">
-        <h3 class="card-title">Rekomendasi Destinasi (SAW)</h3>
-        <div class="card-tools">
-            <button onclick="ambilLokasi()" class="btn btn-sm btn-primary">Gunakan Lokasi Saya</button>
+    <div class="card card-outline card-primary">
+        <div class="card-header">
+            <h3 class="card-title">Manajemen Pengguna</h3>
+            <div class="card-tools">
+                <button onclick="modalAction('{{ url('user/create_ajax') }}')" class="btn btn-sm btn-success mt-1">
+                    <i class="fas fa-plus"></i> Tambah Admin/User
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <table class="table table-bordered table-striped table-hover table-sm" id="table_user">
+                <thead>
+                    <tr>
+                        <th>No</th>
+                        <th>Username</th>
+                        <th>Nama</th>
+                        <th>Level</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+            </table>
         </div>
     </div>
-    <div class="card-body">
-        <div id="container-rekomendasi" class="row">
-            <div class="col-12 text-center text-muted">Klik tombol "Gunakan Lokasi Saya" untuk melihat rekomendasi.</div>
-        </div>
-    </div>
-</div>
-<div id="myModal" class="modal fade animate shake" tabindex="-1" role="dialog" data-backdrop="static"></div>
+    <div id="myModal" class="modal fade animate shake" tabindex="-1" role="dialog" data-bs-backdrop="static"></div>
 @endsection
 
-@push('sripts')
-<script>
-    function ambilLokasi() {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(function(position) {
-                loadRekomendasi(position.coords.latitude, position.coords.longitude);
+@push('scripts')
+    <script>
+        function modalAction(url = '') {
+            $('#myModal').load(url, function() {
+                $('#myModal').modal('show');
             });
         }
-    }
 
-    function loadRekomendasi(lat, lng) {
-        $.ajax({
-            url: "{{ url('wisata/hitung_saw_ajax') }}",
-            type: "POST",
-            // Tambahkan error handling untuk user experience
-            data: { lat: lat, lng: lng, _token: "{{ csrf_token() }}" },
-            success: function(response) {
-                if (response.status) {
-                    let cards = '';
-                    response.data.forEach((item, index) => {
-                        // Perbaiki item.wisata_id menjadi item.id
-                        cards += `
-                            <div class="col-md-4 mb-3">
-                                <div class="card shadow-sm h-100 border-primary">
-                                    <div class="card-header bg-primary text-white"><b>#${index + 1} - ${item.nama_wisata}</b></div>
-                                    <div class="card-body">
-                                        <p class="mb-1 text-muted">Skor SAW: <b>${item.skor}</b></p>
-                                        <small>Jarak: ${item.jarak_user.toFixed(2)} km</small><br>
-                                        <small>Harga: Rp ${parseInt(item.harga).toLocaleString()}</small>
-                                    </div>
-                                    <div class="card-footer bg-white border-0">
-                                        <button onclick="modalAction('{{ url('wisata') }}/${item.id}/show_ajax')" class="btn btn-sm btn-info w-100">Detail & Bayar</button>
-                                    </div>
-                                </div>
-                            </div>`;
-                    });
-                    $('#container-rekomendasi').html(cards);
-                } else {
-                    Swal.fire('Gagal', response.message, 'error');
-                }
-            }
+        $(document).ready(function() {
+            $('#table_user').DataTable({
+                serverSide: true,
+                ajax: "{{ url('user/list') }}",
+                columns: [{
+                        data: "DT_RowIndex",
+                        className: "text-center",
+                        orderable: false,
+                        searchable: false
+                    },
+                    {
+                        data: "username"
+                    },
+                    {
+                        data: "nama"
+                    },
+                    {
+                        data: "level_nama"
+                    },
+                    {
+                        data: "aksi",
+                        className: "text-center",
+                        orderable: false,
+                        searchable: false,
+                        render: function(data, type, row) {
+                            return '<button onclick="modalAction(\'{{ url('user') }}/' + row
+                                .user_id +
+                                '/show_ajax\')" class="btn btn-info btn-sm">Detail</button> ' +
+                                '<button onclick="modalAction(\'{{ url('user') }}/' + row
+                                .user_id +
+                                '/edit_ajax\')" class="btn btn-warning btn-sm">Edit</button> ' +
+                                '<button onclick="modalAction(\'{{ url('user') }}/' + row
+                                .user_id +
+                                '/delete_ajax\')" class="btn btn-danger btn-sm">Hapus</button>';
+                        }
+                    }
+                ]
+            });
         });
-    }
-
-    function modalAction(url = '') {
-        $('#myModal').load(url, function() { $('#myModal').modal('show'); });
-    }
-</script>
+    </script>
 @endpush

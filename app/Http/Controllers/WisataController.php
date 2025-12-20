@@ -7,7 +7,9 @@ use App\Models\Kriteria;
 use App\Models\Fasilitas;
 use Illuminate\Http\Request;
 use Yajra\DataTables\DataTables;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
 
 class WisataController extends Controller
 {
@@ -31,8 +33,11 @@ class WisataController extends Controller
 
     public function create_ajax()
     {
-        $fasilitas = Fasilitas::all(); // Ambil poin-poin seperti Toilet, Toko
-        return view('admin.create_ajax', compact('fasilitas'));
+        $fasilitas = Fasilitas::all();
+        // Ambil kriteria tambahan selain kriteria inti yang sudah punya input khusus
+        $kriteriaTambahan = Kriteria::whereNotIn('nama_kriteria', ['harga', 'jarak', 'fasilitas', 'rating'])->get();
+
+        return view('admin.create_ajax', compact('fasilitas', 'kriteriaTambahan'));
     }
 
     public function store_ajax(Request $request)
@@ -112,16 +117,23 @@ class WisataController extends Controller
             if ($wisata) {
                 $wisata->update($request->all());
 
-                // Sinkronisasi fasilitas (menambah yang dicentang, menghapus yang tidak)
-                $wisata->daftar_fasilitas()->sync($request->fasilitas_ids ?? []);
+                // 1. Simpan/Update Nilai Kriteria Dinamis ke Tabel Pivot
+                if ($request->has('kriteria_tambahan')) {
+                    foreach ($request->kriteria_tambahan as $kriteria_id => $nilai) {
+                        // Menggunakan updateExistingPivot atau syncWithoutDetaching
+                        $wisata->nilai_kriteria()->syncWithoutDetaching([
+                            $kriteria_id => ['nilai' => $nilai]
+                        ]);
+                    }
+                }
 
-                // Update nilai kolom 'fasilitas' untuk perhitungan bobot SAW (jumlah fasilitas)
+                // 2. Sinkronisasi Fasilitas (tetap seperti kode lama Anda)
+                $wisata->daftar_fasilitas()->sync($request->fasilitas_ids ?? []);
                 $wisata->fasilitas = count($request->fasilitas_ids ?? []);
                 $wisata->save();
 
-                return response()->json(['status' => true, 'message' => 'Data berhasil diperbarui']);
+                return response()->json(['status' => true, 'message' => 'Data dan nilai kriteria berhasil diperbarui']);
             }
-            return response()->json(['status' => false, 'message' => 'Data tidak ditemukan']);
         }
     }
 
@@ -156,31 +168,61 @@ class WisataController extends Controller
         $minJarak = $wisata->min('jarak_user');
         $maxFasilitas = $wisata->max('fasilitas');
 
-        // 3. Normalisasi & Perhitungan Skor Akhir
-        $hasil = $wisata->map(function ($item) use ($minHarga, $maxRating, $minJarak, $maxFasilitas, $bobot) {
-            // Normalisasi Cost (Min / x)
-            $n_harga = ($item->harga > 0) ? ($minHarga / $item->harga) : 0;
-            $n_jarak = ($item->jarak_user > 0) ? ($minJarak / $item->jarak_user) : 0;
+        // 3. Normalisasi & Perhitungan Skor Akhir secara Otomatis
+        $semuaKriteria = Kriteria::all(); // Ambil semua kriteria dari DB
 
-            // Normalisasi Benefit (x / Max)
-            $n_rating = ($maxRating > 0) ? ($item->rating / $maxRating) : 0;
-            $n_fasilitas = ($maxFasilitas > 0) ? ($item->fasilitas / $maxFasilitas) : 0;
+        // Cari Min/Max untuk setiap kriteria yang ada
+        $minMax = [];
+        foreach ($semuaKriteria as $k) {
+            if ($k->nama_kriteria == 'jarak') {
+                $minMax[$k->id] = $wisata->min('jarak_user');
+            } elseif ($k->nama_kriteria == 'harga' || $k->nama_kriteria == 'rating' || $k->nama_kriteria == 'fasilitas') {
+                $minMax[$k->id] = $wisata->{$k->jenis == 'cost' ? 'min' : 'max'}($k->nama_kriteria);
+            } else {
+                // Untuk kriteria BARU yang Anda tambah sendiri (diambil dari tabel pivot)
+                $minMax[$k->id] = DB::table('wisata_kriteria')
+                    ->where('kriteria_id', $k->id)
+                    ->{$k->jenis == 'cost' ? 'min' : 'max'}('nilai');
+            }
+        }
 
-            // --- DI SINI KITA PAKAI BOBOT DARI DATABASE ---
-            $skor_akhir =
-                ($n_harga * ($bobot['harga'] ?? 0)) +
-                ($n_rating * ($bobot['rating'] ?? 0)) +
-                ($n_jarak * ($bobot['jarak'] ?? 0)) +
-                ($n_fasilitas * ($bobot['fasilitas'] ?? 0));
+        $hasil = $wisata->map(function ($item) use ($semuaKriteria, $minMax) {
+            $total_skor = 0;
 
-            $item->skor = round($skor_akhir, 4);
+            foreach ($semuaKriteria as $k) {
+                // Ambil nilai real (x)
+                if ($k->nama_kriteria == 'jarak') $nilai_asli = $item->jarak_user;
+                elseif (in_array($k->nama_kriteria, ['harga', 'rating', 'fasilitas'])) $nilai_asli = $item->{$k->nama_kriteria};
+                else {
+                    // Ambil nilai dari tabel pivot untuk kriteria tambahan
+                    $nilai_asli = $item->nilai_kriteria->where('id', $k->id)->first()->pivot->nilai ?? 0;
+                }
+
+                // Jalankan Normalisasi (r)
+                $r = 0;
+                if ($nilai_asli > 0 && isset($minMax[$k->id]) && $minMax[$k->id] > 0) {
+                    if ($k->jenis == 'cost') {
+                        $r = $minMax[$k->id] / $nilai_asli;
+                    } else {
+                        $r = $nilai_asli / $minMax[$k->id];
+                    }
+                }
+
+                // Hitung Skor (r * bobot_normalisasi)
+                $total_skor += ($r * $k->bobot_normalisasi);
+            }
+
+            $item->skor = round($total_skor, 4);
             return $item;
         });
+        // Urutkan data berdasarkan skor tertinggi (Ranking)
+        $hasilRanking = $hasil->sortByDesc('skor')->values();
 
-        // 4. Urutkan berdasarkan skor tertinggi (Rangking)
+        // Kirim hasil ke AJAX agar bisa ditampilkan di halaman Rekomendasi
         return response()->json([
             'status' => true,
-            'data' => $hasil->sortByDesc('skor')->values()
+            'message' => 'Rekomendasi berhasil dihitung.',
+            'data' => $hasilRanking
         ]);
     }
 
@@ -196,11 +238,15 @@ class WisataController extends Controller
 
     public function show_ajax(string $id)
     {
-        $wisata = Wisata::find($id);
+        // Mengambil data wisata beserta fasilitasnya
+        $wisata = Wisata::with('daftar_fasilitas')->find($id);
 
-        return view('admin.show_ajax', [
-            'wisata' => $wisata
-        ]);
+        if (!$wisata) {
+            return response()->json(['status' => false, 'message' => 'Data tidak ditemukan']);
+        }
+
+        // Hapus pengecekan level_id == 1 agar Admin juga melihat tampilan 'wisata_show'
+        return view('wisata_show', compact('wisata'));
     }
 
     public function index()
@@ -226,17 +272,18 @@ class WisataController extends Controller
     public function rekomendasi()
     {
         $breadcrumb = (object) [
-            'title' => 'Rekomendasi Wisata',
+            'title' => 'Rekomendasi Wisata Cerdas',
             'list' => ['Home', 'Rekomendasi']
         ];
 
         $page = (object) [
-            'title' => 'Cari destinasi terbaik berdasarkan lokasi Anda'
+            'title' => 'Cari destinasi terbaik berdasarkan lokasi pilihan Anda'
         ];
 
         $activeMenu = 'rekomendasi';
 
-        return view('admin.rekomendasi', [
+        // Memanggil view/rekomendasi.blade.php
+        return view('rekomendasi', [
             'breadcrumb' => $breadcrumb,
             'page' => $page,
             'activeMenu' => $activeMenu
@@ -261,8 +308,14 @@ class WisataController extends Controller
 
     public function edit_ajax(string $id)
     {
-        $wisata = Wisata::with('daftar_fasilitas')->find($id);
-        $fasilitas = Fasilitas::all(); // Ambil semua master fasilitas
-        return view('admin.edit_ajax', compact('wisata', 'fasilitas'));
+        // Load wisata beserta nilai kriterianya
+        $wisata = Wisata::with('nilai_kriteria', 'daftar_fasilitas')->find($id);
+
+        $fasilitas = Fasilitas::all();
+
+        // Ambil kriteria selain kriteria inti
+        $kriteriaTambahan = Kriteria::whereNotIn('nama_kriteria', ['harga', 'jarak', 'fasilitas', 'rating'])->get();
+
+        return view('admin.edit_ajax', compact('wisata', 'fasilitas', 'kriteriaTambahan'));
     }
 }

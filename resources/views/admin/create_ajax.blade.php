@@ -41,6 +41,18 @@
                     <div class="col-6"><input type="text" name="lng" id="lng_create"
                             class="form-control form-control-sm" readonly required></div>
                 </div>
+
+                <div class="row">
+                    @foreach ($kriteriaTambahan as $kt)
+                        <div class="col-md-6 mt-2">
+                            <div class="form-group">
+                                <label>{{ ucfirst($kt->nama_kriteria) }}</label>
+                                <input type="number" name="kriteria_tambahan[{{ $kt->id }}]" class="form-control"
+                                    placeholder="Masukkan nilai {{ $kt->nama_kriteria }}" required>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" data-bs-dismiss="modal" class="btn btn-warning">Batal</button>

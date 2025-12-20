@@ -62,15 +62,9 @@ return [
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', App\Models\User::class),
+            'model' => App\Models\UserModel::class, // Pastikan Model Anda sudah dibuat
         ],
-
-        // 'users' => [
-        //     'driver' => 'database',
-        //     'table' => 'users',
-        // ],
     ],
-
     /*
     |--------------------------------------------------------------------------
     | Resetting Passwords

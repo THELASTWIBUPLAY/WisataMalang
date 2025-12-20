@@ -11,7 +11,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        //
+        $middleware->alias([
+            'level' => \App\Http\Middleware\CekLevel::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

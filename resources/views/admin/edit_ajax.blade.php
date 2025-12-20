@@ -81,6 +81,24 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="row">
+                        @foreach ($kriteriaTambahan as $kt)
+                            @php
+                                // Cari apakah wisata ini sudah punya nilai untuk kriteria ini di tabel pivot
+                                $nilaiExisting = $wisata->nilai_kriteria->where('id', $kt->id)->first();
+                                $value = $nilaiExisting ? $nilaiExisting->pivot->nilai : '';
+                            @endphp
+                            <div class="col-md-6 mt-2">
+                                <div class="form-group">
+                                    <label>{{ ucfirst($kt->nama_kriteria) }}</label>
+                                    <input type="number" name="kriteria_tambahan[{{ $kt->id }}]"
+                                        class="form-control" value="{{ $value }}"
+                                        placeholder="Masukkan nilai {{ $kt->nama_kriteria }}" required>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" data-bs-dismiss="modal" class="btn btn-warning">Batal</button>

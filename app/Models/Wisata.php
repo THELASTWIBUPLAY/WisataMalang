@@ -19,4 +19,10 @@ class Wisata extends Model
     {
         return $this->belongsToMany(Fasilitas::class, 'wisata_fasilitas', 'wisata_id', 'fasilitas_id');
     }
+
+    public function nilai_kriteria()
+    {
+        // Mengambil kriteria beserta nilai 'nilai' di tabel pivot
+        return $this->belongsToMany(Kriteria::class, 'wisata_kriteria')->withPivot('nilai');
+    }
 }
